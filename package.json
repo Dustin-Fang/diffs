@@ -8,13 +8,20 @@
     "start": "tsx main.ts",
     "dev": "tsx watch main.ts",
     "example": "tsx example-usage.ts",
-    "test": "tsx test-evaluator.ts"
+    "test": "tsx test-evaluator.ts",
+    "test-errors": "tsx test-api-errors.ts",
+    "claude": "tsx main.ts --provider claude",
+    "openai": "tsx main.ts --provider openai",
+    "gemini": "tsx main.ts --provider gemini"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "dotenv": "^16.6.1"
   },
   "devDependencies": {
+    "@types/marked": "^6.0.0",
     "@types/node": "^20.19.9",
+    "marked": "^16.1.1",
     "ts-node": "^10.9.1",
     "tsx": "^4.20.3",
     "typescript": "^5.2.2"

@@ -1,193 +1,144 @@
 # UI Recreation Evaluation Rubric
 
 ## Overview
-
-This rubric is designed for LLM evaluation of UI recreation quality, comparing LLM-generated Android UI against the original Figma design. The evaluation should output a score from 0-300, where 300 represents perfect recreation. **This rubric is designed to be highly sensitive to minute differences and will penalize even small variations.**
+This rubric evaluates UI recreation quality, comparing LLM-generated Android UI against the original Figma design. Score: 0-300 (300 = perfect).
 
 ## Data Variation Considerations
+**IMPORTANT**: Do NOT penalize differences due to mock data:
+- Pricing Information: Different prices, costs, monetary values
+- Dates and Times: Specific dates, times, temporal information  
+- User Data: Names, addresses, phone numbers, personal information
+- Product Information: Product names, descriptions, specifications
+- Quantities and Numbers: Stock levels, ratings, counts, numerical data
+- Status Information: Availability status, booking states, dynamic content
+- Location Data: Addresses, coordinates, location-specific information
 
-**IMPORTANT**: The evaluator must distinguish between design implementation errors and legitimate differences due to data variations. The following elements should NOT be penalized when they differ due to mock data:
+## 🧮 Evaluation Categories (Total: 300 Points)
 
-- **Pricing Information**: Different prices, costs, or monetary values
-- **Dates and Times**: Specific dates, times, or temporal information
-- **User Data**: Names, addresses, phone numbers, or personal information
-- **Product Information**: Product names, descriptions, or specifications that may vary
-- **Quantities and Numbers**: Stock levels, ratings, counts, or numerical data
-- **Status Information**: Availability status, booking states, or dynamic content
-- **Location Data**: Addresses, coordinates, or location-specific information
+### 1. 📐 Layout & Structure (100 points)
 
-**Evaluation Principle**: Focus on the **structure, layout, and design patterns** rather than the specific content values. A price of "$150" vs "$200" should not affect the score if the price display component is correctly implemented.
+| Subcategory                    | Points | Description                                                                 |
+|-------------------------------|--------|-----------------------------------------------------------------------------|
+| **Element Alignment**          | 15     | Are components correctly aligned to each other (vertically and horizontally)? |
+| **Relative Positioning**       | 10     | Are elements placed in the right order and grouping (e.g. icons before text)? |
+| **Element Size Consistency**   | 10     | Are component dimensions (height, width) consistent with the design?        |
+| **Group Nesting & Hierarchy**  | 15     | Are visual groups (e.g. card with title + subtitle) properly nested and structured? |
+| **Z-Index / Layering**         | 10     | Are overlapping elements correctly stacked (e.g. modal above background)?    |
+| **Column/Grid Structure**      | 15     | Are grid layouts preserved (e.g. 2-column layout, uniform list spacing)?     |
+| **Padding Within Components**  | 10     | Is inner padding (e.g. text inside a button) correct?                        |
+| **Inter-Component Spacing**    | 15     | Are margins between distinct components (e.g. button and input) accurate?    |
 
-## Evaluation Categories (Total: 300 points)
+---
 
-### 1. Layout & Structure (100 points)
+### 2. 🎨 Visual Design (100 points)
 
-- **Component Positioning (40 points)**
-  - **Exact positioning (±2px tolerance)**: 20 points
-  - **Relative spacing accuracy**: 10 points
-  - **Alignment precision (left, center, right)**: 10 points
-  
-- **Component Sizing (30 points)**
-  - **Exact width and height (±2px tolerance)**: 15 points
-  - **Aspect ratio accuracy**: 10 points
-  - **Component proportions and scaling**: 5 points
+| Subcategory               | Points | Description                                                                 |
+|---------------------------|--------|-----------------------------------------------------------------------------|
+| **Color Matching**         | 20     | Are background, text, and accent colors accurate (including opacity)?       |
+| **Button States**          | 10     | Are hover, disabled, selected, or pressed states visually distinct as in the design? |
+| **Typography Family**      | 10     | Are correct fonts used (e.g. Roboto vs sans-serif fallback)?                |
+| **Font Size & Weight**     | 10     | Are font sizes and boldness matched correctly?                              |
+| **Text Alignment & Spacing** | 10   | Is text left/center/right aligned as in Figma? Is line height consistent?   |
+| **Border Styling**         | 10     | Are borders (width, color, radius) applied accurately?                      |
+| **Iconography & Assets**   | 10     | Are icons/images correct in style and size (e.g. outlined vs filled icons)? |
+| **Shadow & Elevation**     | 10     | Are elevation and shadow effects present and correct (if used)?             |
+| **Gradient/Fills**         | 10     | Are gradient fills or background patterns preserved?                        |
 
-- **Component Hierarchy (10 points)**
-  - **Parent-child relationships**: 15 points
-  - **Z-index/layering order**: 10 points
-  - **Grouping and nesting structure**: 5 points
+---
 
-- **Spacing & Margins (20 points)**
-  - **Exact margin values (±1px)**: 15 points
-  - **Padding consistency**: 10 points
-  - **Component spacing ratios**: 5 points
+### 3. 🧾 Content & Information Architecture (100 points)
 
-### 2. Visual Design (100 points)
-
-- **Color Accuracy (40 points)**
-  - **Primary colors (exact hex values)**: 20 points
-  - **Secondary/tertiary colors**: 10 points
-  - **Color opacity/transparency**: 10 points
-
-- **Typography (35 points)**
-  - **Font family exact match**: 15 points
-  - **Font size precision (±1px)**: 10 points
-  - **Font weight accuracy**: 5 points
-  - **Text alignment precision**: 5 points
-
-- **Visual Effects (25 points)**
-  - **Shadow properties (offset, blur, color)**: 10 points
-  - **Border properties (width, style, color)**: 8 points
-  - **Gradient/background accuracy**: 7 points
-
-### 3. Content & Information Architecture (100 points)
-
-- **Text Content Structure (60 points)**
-  - **Text positioning (±2px)**: 20 points
-  - **Text hierarchy and emphasis**: 15 points
-  - **Content placeholders and structure**: 15 points
-  - **Text wrapping and overflow handling**: 10 points
-  - Note: Specific text values may differ due to data
-
-- **Data Display Patterns (40 points)**
-  - **List/grid structure accuracy**: 15 points
-  - **Dynamic content placeholder positioning**: 10 points
-  - **Information density and readability**: 10 points
-  - **Data field alignment and spacing**: 5 points
-  - Note: Actual data values may differ due to mock data
-
-## Highly Sensitive Scoring Algorithm
-
-### Base Score Calculation
-
-1. **Category Scoring**: Each category is scored independently (0-100 points each)
-2. **Weighted Sum**: Total = Layout(100) + Visual(100) + Content(100)
-3. **Base Score**: Raw total from 0-300
-
-### Strict Penalty System for Minute Differences
-
-- **Critical Errors (-20 points each)**
-  - Missing major UI components
-  - Completely incorrect layout structure
-  - Wrong component types
-
-- **Major Issues (-10 points each)**
-  - Significant color mismatches (>10% difference)
-  - Major typography errors (wrong font family)
-  - Broken component relationships
-  - Incorrect data display patterns (structure, not values)
-  - Positioning errors >5px
-
-- **Moderate Issues (-5 points each)**
-  - Color variations (5-10% difference)
-  - Font size differences (±2-5px)
-  - Spacing inconsistencies (±2-5px)
-  - Minor alignment issues
-
-- **Minor Issues (-2 points each)**
-  - Slight spacing inconsistencies (±1-2px)
-  - Minor color variations (<5% difference)
-  - Small alignment issues (±1px)
-  - Font weight variations
-
-- **Micro Issues (-1 point each)**
-  - Pixel-perfect positioning differences
-  - Minor opacity variations
-  - Slight shadow differences
-  - Border width variations (±1px)
-
-### Data Variation Exemptions
-
-**NO PENALTIES** for the following differences:
-
-- Different prices, costs, or monetary amounts
-- Different dates, times, or temporal information
-- Different names, addresses, or personal data
-- Different product names or descriptions
-- Different quantities, ratings, or numerical values
-- Different status indicators or availability states
-
-### Sensitivity Multipliers
-
-For highly similar designs, apply these multipliers to increase sensitivity:
-
-- **Positioning errors**: 1.5x penalty multiplier
-- **Color variations**: 1.3x penalty multiplier
-- **Typography differences**: 1.4x penalty multiplier
-- **Spacing inconsistencies**: 1.6x penalty multiplier
-
-## Evaluation Instructions for LLM
-
-1. **Pixel-Perfect Analysis**: Examine every element with extreme precision
-2. **Comparative Assessment**: Compare every element between source and recreation
-3. **Data-Aware Evaluation**: Distinguish between design implementation and data variations
-4. **Contextual Understanding**: Consider the purpose and user experience of each component
-5. **Platform Awareness**: Evaluate Android-specific implementation quality
-6. **Holistic Scoring**: Consider the overall user experience, not just visual similarity
-7. **Micro-Detail Focus**: Pay attention to even 1-2 pixel differences
-
-### Key Evaluation Questions
-
-- Is the component structure and layout correct?
-- Are the visual design elements properly implemented?
-- Does the information architecture match the original?
-- Are data placeholders and patterns correctly structured?
-- Would the UI work with different data values?
-- **Are there any pixel-perfect positioning differences?**
-- **Are color values exactly matching?**
-- **Are font sizes and weights precisely correct?**
-- **Are spacing and margins exactly the same?**
-
-## Expected Score Ranges
-
-- **280-300**: Near-perfect recreation with minimal differences
-- **250-279**: Very good recreation with minor variations
-- **200-249**: Good recreation with noticeable differences
-- **150-199**: Acceptable recreation with significant variations
-- **100-149**: Poor recreation with major differences
-- **0-99**: Failed recreation with critical errors
+| Subcategory                   | Points | Description                                                                   |
+|-------------------------------|--------|-------------------------------------------------------------------------------|
+| **Text Placement**             | 20     | Is each text label/title/subtitle located exactly where it should be?        |
+| **Text Content Presence**      | 10     | Are all key text elements present (not missing or hallucinated)?             |
+| **Label Hierarchy**           | 10     | Is the heading/subheading/body label hierarchy preserved visually?           |
+| **Repeated Content Structures** | 15   | Are lists, tables, or repeated items visually correct and uniform?           |
+| **Section Titles/Dividers**   | 10     | Are section labels and visual separators (lines, cards) in the correct place? |
+| **Placeholder/Text Fallbacks**| 10     | Are placeholders (e.g. "Search…") styled and positioned correctly?           |
+| **Overflow Handling**         | 10     | Do scrollable or clipped areas look natural and follow the design constraints? |
+| **Visual Feedback Regions**   | 15     | Is feedback (e.g. empty state, error state) visually aligned with expectations? |
 
 ## Output Format
 
-```
+**IMPORTANT**: You MUST follow this output format precisely. Use simple markdown lists (`-` or `*`) and do NOT nest list items (e.g., `* -`). Each point must be on a new line. Make sure to try as hard as you can to score each of the line items in each subcategory.
+
 Score: [0-300]
 Breakdown:
 - Layout & Structure: [0-100]
 - Visual Design: [0-100]
 - Content & Information Architecture: [0-100]
 
+Subcategory Scores:
+- **Layout & Structure**
+| Subcategory | Score |
+| --- | --- |
+| Element Alignment | [0-15] |
+| Relative Positioning | [0-10] |
+| Element Size Consistency | [0-10] |
+| Group Nesting & Hierarchy | [0-15] |
+| Z-Index / Layering | [0-10] |
+| Column/Grid Structure | [0-15] |
+| Padding Within Components | [0-10] |
+| Inter-Component Spacing | [0-15] |
+
+- **Visual Design**
+| Subcategory | Score |
+| --- | --- |
+| Color Matching | [0-20] |
+| Button States | [0-10] |
+| Typography Family | [0-10] |
+| Font Size & Weight | [0-10] |
+| Text Alignment & Spacing | [0-10] |
+| Border Styling | [0-10] |
+| Iconography & Assets | [0-10] |
+| Shadow & Elevation | [0-10] |
+| Gradient/Fills | [0-10] |
+
+- **Content & Information Architecture**
+| Subcategory | Score |
+| --- | --- |
+| Text Placement | [0-20] |
+| Text Content Presence | [0-10] |
+| Label Hierarchy | [0-10] |
+| Repeated Content Structures | [0-15] |
+| Section Titles/Dividers | [0-10] |
+| Placeholder/Text Fallbacks | [0-10] |
+| Overflow Handling | [0-10] |
+| Visual Feedback Regions | [0-15] |
+
 Key Strengths:
-[List 2-3 major strengths]
+- [Strength 1]
+- [Strength 2]
 
 Areas for Improvement:
-[List 2-3 critical areas needing work]
+- [Improvement 1]
+- [Improvement 2]
 
 Micro-Differences Detected:
-[List specific pixel-level differences found]
+- `[Critical]` [Description of difference]
+- `[Moderate]` [Description of difference]
+- `[Minor]` [Description of difference]
 
 Data Variations Noted:
-[List any data differences that were correctly ignored]
+- [Data variation 1]
+- [Data variation 2]
 
 Overall Assessment:
 [Brief summary of recreation quality with emphasis on precision]
+
+### Formatting Example:
+
+**GOOD Example (Correct Formatting):**
+```
+Micro-Differences Detected:
+- `[Critical]` The primary button color is incorrect.
+- `[Minor]` The header text is 2px too low.
+```
+
+**BAD Example (Incorrect Formatting):**
+```
+Micro-Differences Detected:
+* - **[Critical]** The primary button color is incorrect.
+  - The header text is 2px too low.
 ```

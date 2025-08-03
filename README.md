@@ -104,8 +104,37 @@ async function batchEvaluate() {
 The main script automatically processes image pairs from the `./images` directory:
 
 ```bash
-npm run start
+# Use default provider (Claude)
+npm start
+
+# Specify a provider
+npm start -- --provider claude
+npm start -- --provider openai
+npm start -- --provider gemini
+
+# Short form
+npm start -- -p claude
+
+# Show help
+npm start -- --help
 ```
+
+#### Convenience Scripts
+
+For quick access to specific providers:
+
+```bash
+npm run claude   # Use Claude
+npm run openai   # Use OpenAI
+npm run gemini   # Use Google Gemini
+```
+
+#### Command Line Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--provider, -p` | LLM provider to use | `npm start -- -p claude` |
+| `--help, -h` | Show help message | `npm start -- --help` |
 
 Image files should be named with the pattern:
 - `{index}_source_{description}.png` (original Figma design)

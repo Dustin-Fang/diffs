@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
@@ -11,6 +12,11 @@ interface UIEvaluationResult {
         layout: number;
         visual: number;
         content: number;
+    };
+    subcategoryScores: {
+        layout: { [key: string]: number };
+        visual: { [key: string]: number };
+        content: { [key: string]: number };
     };
     strengths: string[];
     improvements: string[];
@@ -35,11 +41,13 @@ class UIEvaluator {
     private geminiApiKey: string;
     private claudeApiKey: string;
     private openaiApiKey: string;
+    private generativeAi: GoogleGenerativeAI;
 
     constructor() {
         this.geminiApiKey = process.env.GEMINI_API_KEY || '';
         this.claudeApiKey = process.env.CLAUDE_API_KEY || '';
         this.openaiApiKey = process.env.OPENAI_API_KEY || '';
+        this.generativeAi = new GoogleGenerativeAI(this.geminiApiKey);
     }
 
     async evaluateUI(
@@ -92,6 +100,7 @@ class UIEvaluator {
             return {
                 score: 0,
                 breakdown: { layout: 0, visual: 0, content: 0 },
+                subcategoryScores: { layout: {}, visual: {}, content: {} },
                 strengths: [],
                 improvements: ['Evaluation failed - see API error details'],
                 microDifferences: [],
@@ -108,66 +117,9 @@ class UIEvaluator {
             const rubricContent = await fs.readFile(rubricPath, 'utf-8');
             return rubricContent;
         } catch (error) {
-            console.warn('Using fallback rubric');
-            return this.getFallbackRubric();
+            console.error('Error loading rubric:', error);
+            throw error;
         }
-    }
-
-    private getFallbackRubric(): string {
-        return `
-# UI Recreation Evaluation Rubric
-
-## Overview
-This rubric evaluates UI recreation quality, comparing LLM-generated Android UI against the original Figma design. Score: 0-300 (300 = perfect).
-
-## Data Variation Considerations
-**IMPORTANT**: Do NOT penalize differences due to mock data:
-- Pricing Information: Different prices, costs, monetary values
-- Dates and Times: Specific dates, times, temporal information  
-- User Data: Names, addresses, phone numbers, personal information
-- Product Information: Product names, descriptions, specifications
-- Quantities and Numbers: Stock levels, ratings, counts, numerical data
-- Status Information: Availability status, booking states, dynamic content
-- Location Data: Addresses, coordinates, location-specific information
-
-## Evaluation Categories (Total: 300 points)
-
-### 1. Layout & Structure (100 points)
-- **Component Positioning (40 points)**: Exact positioning, relative spacing, alignment
-- **Component Hierarchy (30 points)**: Parent-child relationships, layering, grouping
-- **Spacing & Margins (30 points)**: Exact margins, padding consistency, spacing ratios
-
-### 2. Visual Design (100 points)
-- **Color Accuracy (40 points)**: Primary/secondary colors, opacity/transparency
-- **Typography (35 points)**: Font family, size, weight, alignment
-- **Visual Effects (25 points)**: Shadows, borders, gradients
-
-### 3. Content & Information Architecture (100 points)
-- **Text Content Structure (60 points)**: Text positioning, hierarchy, placeholders
-- **Data Display Patterns (40 points)**: List/grid structure, dynamic content, readability
-
-## Output Format
-Score: [0-300]
-Breakdown:
-- Layout & Structure: [0-100]
-- Visual Design: [0-100]
-- Content & Information Architecture: [0-100]
-
-Key Strengths:
-[List 2-3 major strengths]
-
-Areas for Improvement:
-[List 2-3 critical areas needing work]
-
-Micro-Differences Detected:
-[List specific pixel-level differences found]
-
-Data Variations Noted:
-[List any data differences that were correctly ignored]
-
-Overall Assessment:
-[Brief summary of recreation quality with emphasis on precision]
-`;
     }
 
     private buildEvaluationPrompt(
@@ -189,70 +141,37 @@ RECREATION IMAGE (Android UI Implementation):
 EVALUATION RUBRIC:
 ${rubric}
 
-INSTRUCTIONS:
-1. Perform pixel-perfect analysis with extreme precision
-2. Compare every element between source and recreation
-3. Distinguish between design implementation errors and legitimate data variations
-4. Apply the strict penalty system for minute differences
-5. Consider Android-specific implementation quality
-6. Focus on structure, layout, and design patterns rather than specific content values
-
 Please provide a detailed evaluation following the exact output format specified in the rubric. Be thorough in your analysis and provide specific, actionable feedback with pixel-level precision.
 `;
     }
 
     private async evaluateWithGemini(
-        prompt: string, 
-        sourceImage: ImageData, 
+        prompt: string,
+        sourceImage: ImageData,
         recreationImage: ImageData
     ): Promise<string> {
-        const sourceImageBase64 = this.convertToBase64(sourceImage.data);
-        const recreationImageBase64 = this.convertToBase64(recreationImage.data);
-        
-        const baseUrl = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com';
-        
-        const response = await fetch(`${baseUrl}/v1beta/models/gemini-pro-vision:generateContent`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.geminiApiKey}`
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { text: prompt },
-                        { 
-                            inline_data: { 
-                                mime_type: sourceImage.mimeType || "image/png", 
-                                data: sourceImageBase64 
-                            } 
-                        },
-                        { 
-                            inline_data: { 
-                                mime_type: recreationImage.mimeType || "image/png", 
-                                data: recreationImageBase64 
-                            } 
-                        }
-                    ]
-                }],
-                generationConfig: {
-                    maxOutputTokens: 4000,
-                    temperature: 0.1
-                }
-            })
-        });
+        const modelName = process.env.GEMINI_MODEL
 
-        const data = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(`Gemini API error: ${response.status} - ${JSON.stringify(data)}`);
-        }
-        
-        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0]) {
-            throw new Error(`Unexpected Gemini API response format: ${JSON.stringify(data)}`);
-        }
-        
-        return data.candidates[0].content.parts[0].text;
+        if (!modelName) throw new Error("GEMINI_MODEL is not set");
+        const model = this.generativeAi.getGenerativeModel({ model: modelName });
+
+        const imageParts = [
+            this.fileToGenerativePart(sourceImage.data, sourceImage.mimeType || "image/png"),
+            this.fileToGenerativePart(recreationImage.data, recreationImage.mimeType || "image/png"),
+        ];
+
+        const result = await model.generateContent([prompt, ...imageParts]);
+        const response = await result.response;
+        return response.text();
+    }
+
+    private fileToGenerativePart(data: Buffer | ArrayBuffer | string, mimeType: string) {
+        return {
+            inlineData: {
+                data: this.convertToBase64(data),
+                mimeType
+            },
+        };
     }
 
     private async evaluateWithClaude(
@@ -389,12 +308,19 @@ Please provide a detailed evaluation following the exact output format specified
         throw new Error('Unsupported data type for image conversion');
     }
 
+    public getScoreFromEvaluation(evaluation: string): number {
+        const cleanedEvaluation = evaluation.replace(/```/g, '');
+        const scoreMatch = cleanedEvaluation.match(/Score:\s*(\d+)/);
+        return scoreMatch ? parseInt(scoreMatch[1]) : 0;
+    }
+
     private parseEvaluationResult(evaluation: string): UIEvaluationResult {
         // Check if evaluation string is empty or invalid
         if (!evaluation || evaluation.trim().length === 0) {
             return {
                 score: 0,
                 breakdown: { layout: 0, visual: 0, content: 0 },
+                subcategoryScores: { layout: {}, visual: {}, content: {} },
                 strengths: [],
                 improvements: ['Invalid or empty LLM response'],
                 microDifferences: [],
@@ -403,10 +329,10 @@ Please provide a detailed evaluation following the exact output format specified
             };
         }
 
-        const scoreMatch = evaluation.match(/Score:\s*(\d+)/);
-        const score = scoreMatch ? parseInt(scoreMatch[1]) : 0;
+        const cleanedEvaluation = evaluation.replace(/```/g, '');
+        const score = this.getScoreFromEvaluation(cleanedEvaluation);
 
-        const breakdownMatch = evaluation.match(/Breakdown:\s*[\s\S]*?Layout & Structure:\s*(\d+)[\s\S]*?Visual Design:\s*(\d+)[\s\S]*?Content & Information Architecture:\s*(\d+)/);
+        const breakdownMatch = cleanedEvaluation.match(/Breakdown:\s*[\s\S]*?Layout & Structure:\s*(\d+)[\s\S]*?Visual Design:\s*(\d+)[\s\S]*?Content & Information Architecture:\s*(\d+)/);
         
         const breakdown = {
             layout: breakdownMatch ? parseInt(breakdownMatch[1]) : 0,
@@ -414,11 +340,17 @@ Please provide a detailed evaluation following the exact output format specified
             content: breakdownMatch ? parseInt(breakdownMatch[3]) : 0
         };
 
-        const strengthsMatch = evaluation.match(/Key Strengths:\s*([\s\S]*?)(?=Areas for Improvement:|Micro-Differences Detected:|Data Variations Noted:|Overall Assessment:)/);
-        const improvementsMatch = evaluation.match(/Areas for Improvement:\s*([\s\S]*?)(?=Micro-Differences Detected:|Data Variations Noted:|Overall Assessment:|$)/);
-        const microDifferencesMatch = evaluation.match(/Micro-Differences Detected:\s*([\s\S]*?)(?=Data Variations Noted:|Overall Assessment:|$)/);
-        const dataVariationsMatch = evaluation.match(/Data Variations Noted:\s*([\s\S]*?)(?=Overall Assessment:|$)/);
-        const assessmentMatch = evaluation.match(/Overall Assessment:\s*([\s\S]*?)$/);
+        const subcategoryScores = {
+            layout: this.parseSubcategoryTable(cleanedEvaluation, "Layout & Structure"),
+            visual: this.parseSubcategoryTable(cleanedEvaluation, "Visual Design"),
+            content: this.parseSubcategoryTable(cleanedEvaluation, "Content & Information Architecture"),
+        };
+
+        const strengthsMatch = cleanedEvaluation.match(/Key Strengths:\s*([\s\S]*?)(?=Areas for Improvement:|Micro-Differences Detected:|Data Variations Noted:|Overall Assessment:)/);
+        const improvementsMatch = cleanedEvaluation.match(/Areas for Improvement:\s*([\s\S]*?)(?=Micro-Differences Detected:|Data Variations Noted:|Overall Assessment:|$)/);
+        const microDifferencesMatch = cleanedEvaluation.match(/Micro-Differences Detected:\s*([\s\S]*?)(?=Data Variations Noted:|Overall Assessment:|$)/);
+        const dataVariationsMatch = cleanedEvaluation.match(/Data Variations Noted:\s*([\s\S]*?)(?=Overall Assessment:|$)/);
+        const assessmentMatch = cleanedEvaluation.match(/Overall Assessment:\s*([\s\S]*?)$/);
 
         const strengths = strengthsMatch ? strengthsMatch[1].trim().split('\n').filter(s => s.trim()) : [];
         const improvements = improvementsMatch ? improvementsMatch[1].trim().split('\n').filter(s => s.trim()) : ['Failed to parse LLM response'];
@@ -429,12 +361,34 @@ Please provide a detailed evaluation following the exact output format specified
         return {
             score,
             breakdown,
+            subcategoryScores,
             strengths,
             improvements,
             microDifferences,
             dataVariations,
             assessment
         };
+    }
+
+    private parseSubcategoryTable(evaluation: string, category: string): { [key: string]: number } {
+        const scores: { [key: string]: number } = {};
+        const tableRegex = new RegExp(`- \\*\\*${category}\\*\\*\\s*\\n(\\|[\\s\\S]*?)\\|\\s*\\n`, "m");
+        const tableMatch = evaluation.match(tableRegex);
+    
+        if (tableMatch) {
+            const tableRows = tableMatch[1].trim().split('\n').slice(2); // Skip header and separator
+            for (const row of tableRows) {
+                const columns = row.split('|').map(c => c.trim());
+                if (columns.length >= 3) {
+                    const subcategory = columns[1];
+                    const scoreMatch = columns[2].match(/(\d+)/);
+                    if (subcategory && scoreMatch) {
+                        scores[subcategory] = parseInt(scoreMatch[1]);
+                    }
+                }
+            }
+        }
+        return scores;
     }
 
     async batchEvaluate(
@@ -478,6 +432,7 @@ Please provide a detailed evaluation following the exact output format specified
                     result: {
                         score: 0,
                         breakdown: { layout: 0, visual: 0, content: 0 },
+                        subcategoryScores: { layout: {}, visual: {}, content: {} },
                         strengths: [],
                         improvements: ['Evaluation failed - see API error details'],
                         microDifferences: [],
@@ -490,6 +445,97 @@ Please provide a detailed evaluation following the exact output format specified
         }
         
         return results;
+    }
+
+    async writeMarkdownReport(
+        results: Array<{ name?: string; result: UIEvaluationResult }>,
+        provider: 'gemini' | 'claude' | 'openai',
+        outputPath: string
+    ): Promise<void> {
+        let markdown = `# UI Evaluation Report\n\n`;
+        markdown += `**LLM Provider:** ${provider.toUpperCase()}\n`;
+        markdown += `**Date:** ${new Date().toISOString()}\n\n`;
+
+        results.forEach((result, index) => {
+            markdown += `## ${result.name || `Pair ${index + 1}`}\n\n`;
+            
+            if (result.result.score === 0 && result.result.apiError) {
+                markdown += `**Score:** ${result.result.score}/300\n\n`;
+                markdown += `**Assessment:** ${result.result.assessment}\n\n`;
+                markdown += `**API Error:**\n`;
+                markdown += `*   **Provider:** ${result.result.apiError.provider}\n`;
+                markdown += `*   **Status:** ${result.result.apiError.status}\n`;
+                markdown += `*   **Message:** ${result.result.apiError.message}\n`;
+            } else {
+                markdown += `**Score:** ${result.result.score}/300\n\n`;
+                markdown += `**Breakdown:**\n`;
+                markdown += `*   **Layout & Structure:** ${result.result.breakdown.layout}/100\n`;
+                markdown += `*   **Visual Design:** ${result.result.breakdown.visual}/100\n`;
+                markdown += `*   **Content & Information Architecture:** ${result.result.breakdown.content}/100\n\n`;
+
+                markdown += `**Subcategory Scores:**\n\n`;
+
+                markdown += `*   **Layout & Structure**\n`;
+                markdown += `| Subcategory | Score |\n`;
+                markdown += `| --- | --- |\n`;
+                if (result.result.subcategoryScores.layout) {
+                    for (const [key, value] of Object.entries(result.result.subcategoryScores.layout)) {
+                        markdown += `| ${key} | ${value} |\n`;
+                    }
+                }
+                markdown += `\n`;
+
+                markdown += `*   **Visual Design**\n`;
+                markdown += `| Subcategory | Score |\n`;
+                markdown += `| --- | --- |\n`;
+                if (result.result.subcategoryScores.visual) {
+                    for (const [key, value] of Object.entries(result.result.subcategoryScores.visual)) {
+                        markdown += `| ${key} | ${value} |\n`;
+                    }
+                }
+                markdown += `\n`;
+
+                markdown += `*   **Content & Information Architecture**\n`;
+                markdown += `| Subcategory | Score |\n`;
+                markdown += `| --- | --- |\n`;
+                if (result.result.subcategoryScores.content) {
+                    for (const [key, value] of Object.entries(result.result.subcategoryScores.content)) {
+                        markdown += `| ${key} | ${value} |\n`;
+                    }
+                }
+                markdown += `\n`;
+
+                markdown += `**Key Strengths:**\n`;
+                result.result.strengths.forEach(strength => {
+                    markdown += `*   ${strength}\n`;
+                });
+                markdown += `\n`;
+
+                markdown += `**Areas for Improvement:**\n`;
+                result.result.improvements.forEach(improvement => {
+                    markdown += `*   ${improvement}\n`;
+                });
+                markdown += `\n`;
+
+                markdown += `**Micro-Differences Detected:**\n`;
+                result.result.microDifferences.forEach(diff => {
+                    markdown += `*   ${diff}\n`;
+                });
+                markdown += `\n`;
+
+                markdown += `**Data Variations Noted:**\n`;
+                result.result.dataVariations.forEach(variation => {
+                    markdown += `*   ${variation}\n`;
+                });
+                markdown += `\n`;
+
+                markdown += `**Overall Assessment:**\n`;
+                markdown += `${result.result.assessment}\n\n`;
+            }
+        });
+
+        await fs.writeFile(outputPath, markdown);
+        console.log(`\nMarkdown report written to ${outputPath}`);
     }
 }
 
