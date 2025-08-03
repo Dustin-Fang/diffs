@@ -1,0 +1,22 @@
+{
+  "name": "diffs",
+  "version": "1.0.0",
+  "description": "AI service integration project",
+  "type": "module",
+  "main": "main.ts",
+  "scripts": {
+    "start": "tsx main.ts",
+    "dev": "tsx watch main.ts",
+    "example": "tsx example-usage.ts",
+    "test": "tsx test-evaluator.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.9",
+    "ts-node": "^10.9.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5.2.2"
+  }
+}
