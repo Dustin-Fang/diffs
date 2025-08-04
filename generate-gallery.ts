@@ -82,7 +82,7 @@ async function generateGallery(pairs: ComparisonPair[], reportInfo: ReportInfo):
           body { font-family: sans-serif; margin: 2em; }
           .comparison-container {
             display: grid;
-            grid-template-columns: auto auto 1fr;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2fr;
             border: 1px solid #ccc;
             padding: 1em;
             margin-bottom: 2em;
@@ -100,6 +100,8 @@ async function generateGallery(pairs: ComparisonPair[], reportInfo: ReportInfo):
           }
           img {
             border: 1px solid #ddd;
+            max-width: 100%;
+            object-fit: contain;
           }
         </style>
       </head>
