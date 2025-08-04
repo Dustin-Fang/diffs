@@ -1,11 +1,12 @@
 // multi-pass-evaluation-framework/multi-pass-eval.ts
-import { UIEvaluator, UIEvaluationResult, ImageData } from "../ui-evaluator";
-import * as rubric from './rubric-constants';
+import { ImageData } from "../ui-evaluator";
+import * as rubric from './atomic-rubric-constants';
 import fs from 'fs/promises';
 import path from 'path';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import dotenv from 'dotenv';
 import { marked } from 'marked';
+import { buildSubcategoryPrompt } from './subcategory-prompt';
 
 interface ImagePair {
     sourceImage: ImageData;
@@ -163,42 +164,6 @@ interface SubcategoryEvalResult {
     reasoning: string;
 }
 
-function buildSubcategoryPrompt(subcategory: rubric.SubcategoryMetadata): string {
-    return `
-You are an expert UI/UX evaluator. Your task is to evaluate a specific aspect of a UI recreation against a source design.
-
-SOURCE IMAGE: [Attached]
-RECREATION IMAGE: [Attached]
-
-EVALUATION CRITERIA:
-- Subcategory: "${subcategory.key}"
-- Question to answer: "${subcategory.description}"
-- Maximum Score: ${subcategory.maxPoints}
-
-INSTRUCTIONS:
-1.  Carefully compare the RECREATION IMAGE to the SOURCE IMAGE based *only* on the subcategory described above.
-2.  Assign a score from 0 to ${subcategory.maxPoints}, where ${subcategory.maxPoints} means a perfect match for this specific criteria.
-3.  Provide a brief reasoning for your score. If there are discrepancies, describe them.
-4.  Remember to use tools to help you evaluate the images. Zoom into images to more carefully evaluate the differences. Draw bounding boxes around elements to help you evaluate the differences and check alignment.
-5.  Limit the reasoning to 3 sentences. Each sentence should be a difference between the source and recreation.
-6.  Respond with ONLY a valid JSON object in the following format. Do not include any other text, markdown, or explanations outside of the JSON structure.
-{
-  "score": <number>,
-  "reasoning": "<string>"
-}
-
-## Data Variation Considerations
-**IMPORTANT**: Do NOT penalize differences due to mock data:
-- Pricing Information: Different prices, costs, monetary values
-- Dates and Times: Specific dates, times, temporal information  
-- User Data: Names, addresses, phone numbers, personal information
-- Product Information: Product names, descriptions, specifications
-- Quantities and Numbers: Stock levels, ratings, counts, numerical data
-- Status Information: Availability status, booking states, dynamic content
-- Location Data: Addresses, coordinates, location-specific information
-`;
-}
-
 interface CategoryResult {
     score: number;
     maxPoints: number;
@@ -207,9 +172,12 @@ interface CategoryResult {
 
 interface PairResult {
     name: string;
-    layout: CategoryResult;
-    visual: CategoryResult;
-    content: CategoryResult;
+    text: CategoryResult;
+    color: CategoryResult;
+    sizing: CategoryResult;
+    spacing: CategoryResult;
+    structure: CategoryResult;
+    style: CategoryResult;
     sourceImageFilename?: string;
     recreationImageFilename?: string;
 }
@@ -219,9 +187,12 @@ async function runEvaluation(imagePairs: ImagePair[]): Promise<PairResult[]> {
 
     for (const pair of imagePairs) {
         const allCategories = [
-            { name: 'layout', subcategories: rubric.layoutAndStructureSubcategories, key: 'layout' as const },
-            { name: 'visual', subcategories: rubric.visualDesignSubcategories, key: 'visual' as const },
-            { name: 'content', subcategories: rubric.contentAndInformationArchitectureSubcategories, key: 'content' as const },
+            { name: 'text', subcategories: rubric.textAndTypographySubcategories, key: 'text' as const },
+            { name: 'color', subcategories: rubric.colorAndFillSubcategories, key: 'color' as const },
+            { name: 'sizing', subcategories: rubric.sizingAndDimensionSubcategories, key: 'sizing' as const },
+            { name: 'spacing', subcategories: rubric.spacingAndPositioningSubcategories, key: 'spacing' as const },
+            { name: 'structure', subcategories: rubric.structureAndHierarchySubcategories, key: 'structure' as const },
+            { name: 'style', subcategories: rubric.stylingAndEffectsSubcategories, key: 'style' as const },
         ];
 
         for (const category of allCategories) {
@@ -273,18 +244,22 @@ async function runEvaluation(imagePairs: ImagePair[]): Promise<PairResult[]> {
         if (!allResults[evalResult.pairName]) {
             allResults[evalResult.pairName] = {
                 name: evalResult.pairName,
-                layout: { score: 0, maxPoints: 0, subcategories: {} },
-                visual: { score: 0, maxPoints: 0, subcategories: {} },
-                content: { score: 0, maxPoints: 0, subcategories: {} },
+                text: { score: 0, maxPoints: 0, subcategories: {} },
+                color: { score: 0, maxPoints: 0, subcategories: {} },
+                sizing: { score: 0, maxPoints: 0, subcategories: {} },
+                spacing: { score: 0, maxPoints: 0, subcategories: {} },
+                structure: { score: 0, maxPoints: 0, subcategories: {} },
+                style: { score: 0, maxPoints: 0, subcategories: {} },
                 sourceImageFilename: evalResult.sourceImageFilename,
                 recreationImageFilename: evalResult.recreationImageFilename
             };
         }
 
-        const pairResult = allResults[evalResult.pairName];
-        pairResult[evalResult.categoryKey].subcategories[evalResult.subcategoryKey] = evalResult.result;
-        pairResult[evalResult.categoryKey].score += evalResult.result.score;
-        pairResult[evalResult.categoryKey].maxPoints += evalResult.subcategory.maxPoints;
+        const pairResult = allResults[evalResult.pairName]!;
+        const categoryResult = pairResult[evalResult.categoryKey];
+        categoryResult.subcategories[evalResult.subcategoryKey] = evalResult.result;
+        categoryResult.score += evalResult.result.score;
+        categoryResult.maxPoints += evalResult.subcategory.maxPoints;
     }
 
     return Object.values(allResults);
@@ -292,23 +267,29 @@ async function runEvaluation(imagePairs: ImagePair[]): Promise<PairResult[]> {
 
 function generateMarkdownForPair(result: PairResult): string {
     let markdown = `## ${result.name}\n\n`;
-    const totalScore = result.layout.score + result.visual.score + result.content.score;
-    const totalMaxPoints = result.layout.maxPoints + result.visual.maxPoints + result.content.maxPoints;
+    const totalScore = result.text.score + result.color.score + result.sizing.score + result.spacing.score + result.structure.score + result.style.score;
+    const totalMaxPoints = result.text.maxPoints + result.color.maxPoints + result.sizing.maxPoints + result.spacing.maxPoints + result.structure.maxPoints + result.style.maxPoints;
     markdown += `**Total Score: ${totalScore} / ${totalMaxPoints}**\n\n`;
 
     markdown += `### Category Scores\n`;
     markdown += `| Category | Score |\n`;
     markdown += `| --- | --- |\n`;
-    markdown += `| Layout & Structure | ${result.layout.score} / ${result.layout.maxPoints} |\n`;
-    markdown += `| Visual Design | ${result.visual.score} / ${result.visual.maxPoints} |\n`;
-    markdown += `| Content & Information Architecture | ${result.content.score} / ${result.content.maxPoints} |\n\n`;
+    markdown += `| Text & Typography | ${result.text.score} / ${result.text.maxPoints} |\n`;
+    markdown += `| Color & Fill | ${result.color.score} / ${result.color.maxPoints} |\n`;
+    markdown += `| Sizing & Dimension | ${result.sizing.score} / ${result.sizing.maxPoints} |\n`;
+    markdown += `| Spacing & Positioning | ${result.spacing.score} / ${result.spacing.maxPoints} |\n`;
+    markdown += `| Structure & Hierarchy | ${result.structure.score} / ${result.structure.maxPoints} |\n`;
+    markdown += `| Styling & Effects | ${result.style.score} / ${result.style.maxPoints} |\n\n`;
     
     markdown += `### Detailed Breakdown\n`;
     
-    const allCategories: {name: string; key: 'layout' | 'visual' | 'content'}[] = [
-        { name: 'Layout & Structure', key: 'layout' },
-        { name: 'Visual Design', key: 'visual' },
-        { name: 'Content & Information Architecture', key: 'content' },
+    const allCategories: {name: string; key: 'text' | 'color' | 'sizing' | 'spacing' | 'structure' | 'style'}[] = [
+        { name: 'Text & Typography', key: 'text' },
+        { name: 'Color & Fill', key: 'color' },
+        { name: 'Sizing & Dimension', key: 'sizing' },
+        { name: 'Spacing & Positioning', key: 'spacing' },
+        { name: 'Structure & Hierarchy', key: 'structure' },
+        { name: 'Styling & Effects', key: 'style' },
     ];
     
     for (const category of allCategories) {
@@ -358,7 +339,7 @@ async function generateHtmlGallery(results: PairResult[], timestamp: string) {
           body { font-family: sans-serif; margin: 2em; }
           .comparison-container {
             display: grid;
-            grid-template-columns: 1fr 1fr 2fr;
+            grid-template-columns: 1fr 1fr 3fr;
             border: 1px solid #ccc;
             padding: 1em;
             margin-bottom: 2em;
@@ -451,9 +432,12 @@ async function main() {
 }
 
 const rubricMap = {
-    layout: rubric.layoutAndStructureSubcategories,
-    visual: rubric.visualDesignSubcategories,
-    content: rubric.contentAndInformationArchitectureSubcategories,
+    text: rubric.textAndTypographySubcategories,
+    color: rubric.colorAndFillSubcategories,
+    sizing: rubric.sizingAndDimensionSubcategories,
+    spacing: rubric.spacingAndPositioningSubcategories,
+    structure: rubric.structureAndHierarchySubcategories,
+    style: rubric.stylingAndEffectsSubcategories,
 };
 
 
