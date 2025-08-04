@@ -24,6 +24,7 @@ if (!geminiApiKey) {
 const generativeAi = new GoogleGenerativeAI(geminiApiKey);
 
 const temperature = 0.0;
+const topP = 1.0;
 
 async function loadImagePairs(): Promise<ImagePair[]> {
     const imagesDir = './images';
@@ -120,14 +121,14 @@ async function evaluateWithGemini(
     sourceImage: ImageData,
     recreationImage: ImageData
 ): Promise<string> {
-    const modelName = process.env.GEMINI_MODEL
+    const modelName = 'gemini-2.5-pro';
     if (!modelName) throw new Error("GEMINI_MODEL is not set");
     
     const model = generativeAi.getGenerativeModel({ 
         model: modelName,
         generationConfig: {
             temperature,
-            topP: 1.0,
+            topP,
         },
         safetySettings: [
             {

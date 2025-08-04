@@ -14,8 +14,9 @@ EVALUATION CRITERIA:
 
 INSTRUCTIONS:
 1.  Carefully compare the RECREATION IMAGE to the SOURCE IMAGE based *only* on the subcategory described above.
+2.  Use the "Questions to answer" as the entire focus of your evaluation. No other aspects of the UI should be considered.
 2.  Assign a score from 0 to ${subcategory.maxPoints}, where ${subcategory.maxPoints} means a perfect match for this specific criteria.
-3.  Provide a brief reasoning for your score. If there are discrepancies, describe them.
+3.  Provide a brief reasoning for your score. If there are discrepancies, describe them. Your reasoning should only relate to the "Questions at hand"
 4.  Remember to use tools to help you evaluate the images. Zoom into images to more carefully evaluate the differences. Draw bounding boxes around elements to help you evaluate the differences and check alignment.
 5.  Limit the reasoning to 50 words. Only cite the differences between the source and recreation.
 6.  Respond with ONLY a valid JSON object in the following format. Do not include any other text, markdown, or explanations outside of the JSON structure.
